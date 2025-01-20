@@ -2,6 +2,35 @@
 
 #define INITIAL_CAPACITY 10
 
+void merge(FILE* output, char** arr1, char** arr2, u_int counter1, u_int counter2) {
+
+    int i=0, j=0;
+
+    while (i < counter1 && j < counter2) {
+        if (strcmp(arr1[i], arr2[j])<0) {
+            fprintf(output, "%s\n", arr1[i]);
+            i++;
+        }
+        else {
+            fprintf(output, "%s\n", arr2[j]);
+            j++;
+        }
+    }
+
+    // Copy the remaining elements of arr1[], if any
+    while (i < counter1) {
+        fprintf(output, "%s", arr1[i]);
+        i++;
+    }
+
+    // Copy the remaining elements of arr2[], if any
+    while (j < counter2) {
+        fprintf(output, "%s", arr2[j]);
+        j++;
+    }
+}
+
+
 char **readInput(FILE *dataInput, unsigned int *count) {
     char **lines = NULL;  // Array of strings (lines)
     size_t capacity = INITIAL_CAPACITY;  // Initial capacity of the array

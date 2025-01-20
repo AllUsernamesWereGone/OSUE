@@ -12,6 +12,7 @@
 
 
 char** readInput(FILE *dataInput,unsigned int *count);
+void merge(FILE* output, char** arr1, char** arr2, u_int counter1, u_int counter2);
 
 
 #endif // FORK_H

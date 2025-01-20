@@ -46,42 +46,60 @@ int main(int argc, char **argv) {
         linesRight[i] = lines[leftCounter + i];
     }
 
+    //free original data, new arrays contain data
+    free(lines);
+
     //pipe data
     int pipeLeft[2], pipeRight[2];
     if(pipe(pipeLeft) == -1 || pipe(pipeRight) == -1){ //create the pipes
         perror("error creating pipes");
-        free(lines);
         free(linesLeft);
         free(linesRight);
         exit(EXIT_FAILURE);
     }
-
-    //free original data, new arrays contain data
-    free(lines);
 
     //left 
     pid_t leftChild = fork();
 
     if(leftChild == -1){
         fprintf(stderr, "error in forking left child");
-        free(lines);
         free(linesLeft);
         free(linesRight);
         exit(EXIT_FAILURE);
     }
 
-    if(leftChild == 0){ //child
+    if(leftChild == 0){ //child left
         close(pipeLeft[0]);     //close read end of pipe, child doesnt need it
         close(pipeRight[0]);    //close read end of right pipe
         close(pipeRight[1]);    //close write end of right pipe
 
+
+
+
+/* GPT
         dup2(pipeLeft[1], STDOUT_FILENO);   //redirect stdout to pipe
         
         //write data into pipes
         for (unsigned int i = 0; i < leftCounter; i++) {
-            write(pipeLeft[1], linesLeft[i], strlen(linesLeft[i]));
+            write(pipeLeft[1], linesLeft[i], strlen(linesLeft[i]) + 1);
         }
         close(pipeLeft[1]); // Close the write end after sending the data
+*/
+        FILE* writeStream = fdopen(pipeLeft[1], "w");
+        if (!writeStream) {
+            perror("fdopen");
+            exit(EXIT_FAILURE);
+        }
+
+        for (unsigned int i = 0; i < leftCounter; i++) {
+            fprintf(writeStream, "%s", linesLeft[i]);
+        }
+        fclose(writeStream);
+        free(linesLeft);
+        free(linesRight);
+
+
+
 
         //recursion
         execlp(argv[0], argv[0], NULL);
@@ -93,8 +111,6 @@ int main(int argc, char **argv) {
         free(linesRight);
         exit(EXIT_FAILURE);
     }
-
- 
 
     //right
     pid_t rightChild = fork();
@@ -112,14 +128,34 @@ int main(int argc, char **argv) {
         close(pipeLeft[0]);     //close read end of left pipe
         close(pipeLeft[1]);     //close write end of left pipe
 
+
+
+
+/* GPT
         dup2(pipeRight[1], STDOUT_FILENO);   //redirect stdout to pipe
 
         //write data into pipes
         for (unsigned int i = 0; i < rightCounter; i++) {
-            write(pipeRight[1], linesRight[i], strlen(linesRight[i]));
+            write(pipeRight[1], linesRight[i], strlen(linesRight[i]) + 1);
         }
 
         close(pipeRight[1]); // Close the write end after sending the data
+*/
+        FILE* writeStream = fdopen(pipeRight[1], "w");
+        if (!writeStream) {
+            perror("fdopen");
+            exit(EXIT_FAILURE);
+        }
+
+        for (unsigned int i = 0; i < rightCounter; i++) {
+            fprintf(writeStream, "%s", linesRight[i]);
+        }
+        fclose(writeStream);
+        free(linesLeft);
+        free(linesRight);
+
+
+
 
         //recursion
         execlp(argv[0], argv[0], NULL);
@@ -132,10 +168,9 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-
-    close(pipeLeft[0]);    
-    close(pipeLeft[1]);    
-    close(pipeRight[0]);    
+    //parent processes from here on
+  
+    close(pipeLeft[1]);        
     close(pipeRight[1]);  
 
 
@@ -152,6 +187,24 @@ int main(int argc, char **argv) {
 
     //rest of the code
         
+    //TODO--------------------------------------------------------------
+
+
+    //GPT
+    char buffer[1024];
+    char** sortedLeft = malloc(leftCounter * sizeof(char*));
+    char** sortedRight = malloc(rightCounter * sizeof(char*));
+    unsigned int leftIndex = 0, rightIndex = 0;
+
+    while (fgets(buffer, sizeof(buffer), leftStream)) {
+        sortedLeft[leftIndex++] = strdup(buffer);
+    }
+    while (fgets(buffer, sizeof(buffer), rightStream)) {
+        sortedRight[rightIndex++] = strdup(buffer);
+    }
+
+    fclose(leftStream);
+    fclose(rightStream);
 
 
 
@@ -159,8 +212,49 @@ int main(int argc, char **argv) {
 
 
 
+    // Wait for both children to finish
+    int status;
+    waitpid(leftChild, &status, 0);
+    if (WEXITSTATUS(status) == EXIT_FAILURE) {
+        fprintf(stderr, "error in left child process.. \n");
+        exit(EXIT_FAILURE);
+    }
+    waitpid(rightChild, &status, 0);
+    if (WEXITSTATUS(status) == EXIT_FAILURE) {
+        fprintf(stderr, "error in right child process.. \n");
+        exit(EXIT_FAILURE);
+    }
 
 
+    //test ----------------------------
+    /*
+    //char **lines = readInput(stdin, &lineCount);
+    char **sortedLeft = readInput(leftStream, &leftCounter);
+    char **sortedRight = readInput(rightStream, &rightCounter);
+    fclose(leftStream);
+    fclose(rightStream);
+*/
+
+
+    //merge
+    merge(stdout, sortedLeft, sortedRight, leftCounter, rightCounter);
+
+    //Free all memory
+
+    close(pipeLeft[0]);    
+    close(pipeLeft[1]);    
+    close(pipeRight[0]);    
+    close(pipeRight[1]);  
+
+    for (unsigned int i = 0; i < leftCounter; i++) {
+        free(sortedLeft[i]);
+    }
+    free(sortedLeft);
+
+    for (unsigned int i = 0; i < rightCounter; i++) {
+        free(sortedRight[i]);
+    }
+    free(sortedRight);
 
 
     //free the rest
