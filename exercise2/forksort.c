@@ -7,14 +7,33 @@ int main(int argc, char **argv) {
 
     unsigned int lineCount = 0;
 
+
+    if (argc > 1 && strcmp(argv[1], "left") == 0) {
+        // Read from stdin (pipeLeft)
+        char** lines = readInput(stdin, &lineCount);
+        if (lineCount == 1) {
+            fprintf(stdout, "%s", lines[0]);
+            free(lines);
+            return EXIT_SUCCESS;
+        }
+    } else if (argc > 1 && strcmp(argv[1], "right") == 0) {
+        // Read from stdin (pipeRight)
+        char** lines = readInput(stdin, &lineCount);
+        if (lineCount == 1) {
+            fprintf(stdout, "%s", lines[0]);
+            free(lines);
+            return EXIT_SUCCESS;
+        }
+    }
+
     // Call the readInput function to read lines from stdin
     char **lines = readInput(stdin, &lineCount);
-
     // Check if the function succeeded
     if (!lines) {
         fprintf(stderr, "Failed to read input.\n");
         return EXIT_FAILURE;
     }
+
 
     //basecase
     if(lineCount == 1){ 
@@ -25,7 +44,7 @@ int main(int argc, char **argv) {
     }
 
     //split data 
-    u_int leftCounter = lineCount/2;
+    u_int leftCounter = lineCount / 2;
     u_int rightCounter = lineCount - leftCounter;
     char **linesLeft = malloc(leftCounter * sizeof(char *));
     char **linesRight = malloc(rightCounter * sizeof(char *));
@@ -69,40 +88,15 @@ int main(int argc, char **argv) {
     }
 
     if(leftChild == 0){ //child left
-        close(pipeLeft[0]);     //close read end of pipe, child doesnt need it
         close(pipeRight[0]);    //close read end of right pipe
         close(pipeRight[1]);    //close write end of right pipe
 
-
-
-
-/* GPT
+        dup2(pipeLeft[0], STDIN_FILENO);
         dup2(pipeLeft[1], STDOUT_FILENO);   //redirect stdout to pipe
+
         
-        //write data into pipes
-        for (unsigned int i = 0; i < leftCounter; i++) {
-            write(pipeLeft[1], linesLeft[i], strlen(linesLeft[i]) + 1);
-        }
-        close(pipeLeft[1]); // Close the write end after sending the data
-*/
-        FILE* writeStream = fdopen(pipeLeft[1], "w");
-        if (!writeStream) {
-            perror("fdopen");
-            exit(EXIT_FAILURE);
-        }
-
-        for (unsigned int i = 0; i < leftCounter; i++) {
-            fprintf(writeStream, "%s", linesLeft[i]);
-        }
-        fclose(writeStream);
-        free(linesLeft);
-        free(linesRight);
-
-
-
-
         //recursion
-        execlp(argv[0], argv[0], NULL);
+        execlp(argv[0], argv[0], "left", NULL);
 
         //if execlp fails
         perror("execlp left failed");
@@ -124,41 +118,17 @@ int main(int argc, char **argv) {
     }
 
     if(rightChild == 0){ //child right
-        close(pipeRight[0]);    //close read end of pipe, child doesnt need it
         close(pipeLeft[0]);     //close read end of left pipe
         close(pipeLeft[1]);     //close write end of left pipe
 
-
-
-
-/* GPT
+        dup2(pipeRight[0], STDIN_FILENO);
         dup2(pipeRight[1], STDOUT_FILENO);   //redirect stdout to pipe
 
-        //write data into pipes
-        for (unsigned int i = 0; i < rightCounter; i++) {
-            write(pipeRight[1], linesRight[i], strlen(linesRight[i]) + 1);
-        }
-
-        close(pipeRight[1]); // Close the write end after sending the data
-*/
-        FILE* writeStream = fdopen(pipeRight[1], "w");
-        if (!writeStream) {
-            perror("fdopen");
-            exit(EXIT_FAILURE);
-        }
-
-        for (unsigned int i = 0; i < rightCounter; i++) {
-            fprintf(writeStream, "%s", linesRight[i]);
-        }
-        fclose(writeStream);
-        free(linesLeft);
-        free(linesRight);
-
-
-
+        close(pipeRight[0]);    //close read end of right pipe
+        close(pipeRight[1]);
 
         //recursion
-        execlp(argv[0], argv[0], NULL);
+        execlp(argv[0], argv[0], "right", NULL);
 
         //if execlp fails
         perror("execlp left failed");
@@ -169,9 +139,45 @@ int main(int argc, char **argv) {
     }
 
     //parent processes from here on
-  
+    //close(pipeLeft[0]);        
+    //close(pipeRight[0]); 
+    //close(pipeLeft[1]);        
+    //close(pipeRight[1]);  
+
+
+    FILE *leftIn = fdopen(pipeLeft[1], "w");
+    if (leftIn == NULL) {
+        perror("Error opening pipe for writing (left)");
+        free(linesLeft);
+        free(linesRight);
+        exit(EXIT_FAILURE);
+    }
+   
+    FILE *rightIn = fdopen(pipeRight[1], "w");
+    if (rightIn == NULL) {
+        perror("Error opening pipe for writing (right)");
+        free(linesLeft);
+        free(linesRight);
+        exit(EXIT_FAILURE);
+    }
+
+    for(int i = 0; i < leftCounter; i++){
+        fprintf(leftIn, "%s\n", linesLeft[i]);
+    }
+
+    for(int i = 0; i < rightCounter; i++){
+        fprintf(rightIn, "%s\n", linesRight[i]);
+    }
+
+    free(linesLeft);
+    free(linesRight);
+    fclose(leftIn);
+    fclose(rightIn);
+
     close(pipeLeft[1]);        
-    close(pipeRight[1]);  
+    close(pipeRight[1]); 
+
+
 
 
     FILE *leftStream = fdopen(pipeLeft[0], "r");
@@ -188,6 +194,18 @@ int main(int argc, char **argv) {
     //rest of the code
         
     //TODO--------------------------------------------------------------
+    // Wait for both children to finish
+    int status;
+    waitpid(leftChild, &status, 0);
+    if (WEXITSTATUS(status) == EXIT_FAILURE) {
+        fprintf(stderr, "error in left child process.. \n");
+        exit(EXIT_FAILURE);
+    }
+    waitpid(rightChild, &status, 0);
+    if (WEXITSTATUS(status) == EXIT_FAILURE) {
+        fprintf(stderr, "error in right child process.. \n");
+        exit(EXIT_FAILURE);
+    }
 
 
     //GPT
@@ -206,25 +224,12 @@ int main(int argc, char **argv) {
     fclose(leftStream);
     fclose(rightStream);
 
+    close(pipeLeft[0]);        
+    close(pipeRight[0]); 
 
 
 
-
-
-
-    // Wait for both children to finish
-    int status;
-    waitpid(leftChild, &status, 0);
-    if (WEXITSTATUS(status) == EXIT_FAILURE) {
-        fprintf(stderr, "error in left child process.. \n");
-        exit(EXIT_FAILURE);
-    }
-    waitpid(rightChild, &status, 0);
-    if (WEXITSTATUS(status) == EXIT_FAILURE) {
-        fprintf(stderr, "error in right child process.. \n");
-        exit(EXIT_FAILURE);
-    }
-
+    
 
     //test ----------------------------
     /*

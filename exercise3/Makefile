@@ -1,13 +1,21 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -O2
+CFLAGS = -std=c99 -pedantic -Wall -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_SVID_SOURCE -D_POSIX_C_SOURCE=200809L -g
 
-all: client server
+.PHONY: all clean
 
-client: client.c
-	$(CC) $(CFLAGS) -o client client.c
+TARGETS = server client
+HEADERS = http.h
 
-server: server.c
-	$(CC) $(CFLAGS) -o server server.c
+all: $(TARGETS)
+
+server: server.o
+	$(CC) $(CFLAGS) -o $@ server.o
+
+client: client.o
+	$(CC) $(CFLAGS) -o $@ client.o
+
+%.o: %.c $(HEADERS)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f client server
+	rm -f *.o $(TARGETS)

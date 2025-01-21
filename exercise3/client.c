@@ -1,100 +1,121 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <errno.h>
+#include "http.h"
 
-#define BUFFER_SIZE 1024
 
-void print_usage() {
-    printf("Usage: client [-p PORT] [-o FILE | -d DIR] URL\n");
-    exit(1);
-}
+
+
 
 int main(int argc, char *argv[]) {
-    int port = 80; // Default HTTP port
-    char *url = NULL, *output_file = NULL, *output_dir = NULL;
-    char host[BUFFER_SIZE], path[BUFFER_SIZE];
-    
+
     int opt;
+    int port = 80; //standard port
+    char* url = NULL;
+    char* file_name = NULL;
+    char* dir_name = NULL;
+    char *path = NULL;
+    char host[256];
+    
+
+
     while ((opt = getopt(argc, argv, "p:o:d:")) != -1) {
         switch (opt) {
-            case 'p': port = atoi(optarg); break;
-            case 'o': output_file = optarg; break;
-            case 'd': output_dir = optarg; break;
-            default: print_usage();
+        case 'p':
+            //port handling
+            port = atoi(optarg);
+            break;
+        case 'o':
+            //FILE name
+            file_name = optarg;
+            break;
+        case 'd':
+            //DIRectory name
+            dir_name = optarg;
+            break;
+        default: /* '?' */
+            usage();
         }
     }
 
-    if (optind < argc) {
+    if(file_name && dir_name){
+        usage();
+    }
+
+    if (optind >= argc) {
+        usage();
+    }else{
         url = argv[optind];
+    }
+    
+
+    if (strlen(url) <= 7 || strncmp(url, "http://", 7) != 0) {
+        error("Invalid url");
+        usage();
+    }
+    
+    // split URL into the path and host
+    // http://www.example.com/test.html
+    // path: /test.html
+    // host: www.example.com
+    path = strpbrk(url + 7, ";/?:@=&");
+    sprintf(host, "%.*s", (int) (path ? (path - (url + 7)) : strlen(url + 7)), url + 7);
+    if (!path) path = "/";
+
+
+    //tries to open the file or the directoy which is specified
+    FILE *file = NULL;
+    if (file_name) {
+        if ((file = fopen(file_name, "wb+")) == NULL) {
+            error("Unable to open file");
+            return EXIT_FAILURE;
+        }
+    } else if (dir_name) {
+        char buf[256];
+        char *pos = strrchr(path, '/');
+        char *qpos = strchr(pos, '?');
+        char *name = (pos[1] == 0 || pos[1] == '?') ? "index.html" : pos + 1;
+        //constructs the path
+        sprintf(buf, "%s/%.*s", dir_name, (int) ((name != pos + 1 || qpos == NULL) ? strlen(name) : qpos - pos), name);
+        if ((file = fopen(buf, "wb+")) == NULL) {
+            error("Unable to open file");
+            return EXIT_FAILURE;
+        }
+    }
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+    printf("Client success\n");
+    return EXIT_SUCCESS;
+}
+
+
+void usage(void){
+    fprintf(stderr, "usage: client [-p PORT] [ -o FILE | -d DIR ] URL\n");
+    exit(EXIT_FAILURE);
+}
+
+
+void error(const char *msg) {
+    if (errno == 0) {
+        fprintf(stderr, "%s\n",msg);
     } else {
-        print_usage();
+        fprintf(stderr, "%s: %s\n", msg, strerror(errno));
     }
-
-    if (sscanf(url, "http://%[^/]%s", host, path) != 2) {
-        strcpy(path, "/");
-    }
-
-    printf("Host: %s\n", host);
-    printf("Path: %s\n", path);
-    printf("Port: %d\n", port);
-
-    // Create socket
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0) {
-        perror("Socket creation failed");
-        return 1;
-    }
-
-    // Resolve hostname
-    struct hostent *server = gethostbyname(host);
-    if (!server) {
-        fprintf(stderr, "Host not found: %s\n", host);
-        return 1;
-    }
-
-    struct sockaddr_in server_addr;
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(port);
-    memcpy(&server_addr.sin_addr.s_addr, server->h_addr, server->h_length);
-
-    // Connect to server
-    if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Connection failed");
-        return 1;
-    }
-
-    // Build HTTP GET request
-    char request[BUFFER_SIZE];
-    snprintf(request, sizeof(request), "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", path, host);
-    send(sock, request, strlen(request), 0);
-
-    // Receive response
-    char buffer[BUFFER_SIZE];
-    FILE *output = stdout;
-    if (output_file) output = fopen(output_file, "w");
-    else if (output_dir) {
-        char file_path[BUFFER_SIZE];
-        snprintf(file_path, sizeof(file_path), "%s/%s", output_dir, "index.html");
-        output = fopen(file_path, "w");
-    }
-
-    if (!output) {
-        perror("File open failed");
-        close(sock);
-        return 1;
-    }
-
-    int bytes_received;
-    while ((bytes_received = recv(sock, buffer, sizeof(buffer), 0)) > 0) {
-        fwrite(buffer, 1, bytes_received, output);
-    }
-
-    if (output != stdout) fclose(output);
-    close(sock);
-    return 0;
 }
