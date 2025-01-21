@@ -8,11 +8,11 @@ void merge(FILE* output, char** arr1, char** arr2, u_int counter1, u_int counter
 
     while (i < counter1 && j < counter2) {
         if (strcmp(arr1[i], arr2[j])<0) {
-            fprintf(output, "%s\n", arr1[i]);
+            fprintf(output, "%s", arr1[i]);
             i++;
         }
         else {
-            fprintf(output, "%s\n", arr2[j]);
+            fprintf(output, "%s", arr2[j]);
             j++;
         }
     }
@@ -41,18 +41,20 @@ char **readInput(FILE *dataInput, unsigned int *count) {
     // Allocate memory for the initial array
     lines = malloc(capacity * sizeof(char *));
     if (!lines) {
-        perror("malloc");
+        perror("malloc\n");
         return NULL;  // Return NULL to indicate failure
     }
 
     // Read lines from the provided input
     while (getline(&buffer, &bufferSize, dataInput) != -1) {
+    //for (int a = 0; a <5 ; a++){
+
         // Resize the array if needed
         if (size == capacity) {
             capacity *= 2;  // Double the capacity
             char **newLines = realloc(lines, capacity * sizeof(char *));
             if (!newLines) {
-                perror("realloc");
+                perror("realloc\n");
                 free(buffer);
                 for (size_t i = 0; i < size; i++) {
                     free(lines[i]);
@@ -66,7 +68,7 @@ char **readInput(FILE *dataInput, unsigned int *count) {
         // Store the line in the array
         lines[size] = strdup(buffer);  // Duplicate the buffer
         if (!lines[size]) {
-            perror("strdup");
+            perror("strdup\n");
             free(buffer);
             for (size_t i = 0; i < size; i++) {
                 free(lines[i]);

@@ -7,7 +7,7 @@ int main(int argc, char **argv) {
 
     unsigned int lineCount = 0;
 
-
+/*
     if (argc > 1 && strcmp(argv[1], "left") == 0) {
         // Read from stdin (pipeLeft)
         char** lines = readInput(stdin, &lineCount);
@@ -25,6 +25,8 @@ int main(int argc, char **argv) {
             return EXIT_SUCCESS;
         }
     }
+*/
+    printf("linecount  : %d\n", lineCount);
 
     // Call the readInput function to read lines from stdin
     char **lines = readInput(stdin, &lineCount);
@@ -34,14 +36,19 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
+    printf("linecount 2: %d\n", lineCount);
 
-    //basecase
-    if(lineCount == 1){ 
-        fprintf(stdout, "%s\n", lines[0]);
+    fflush(stdout);
+
+    
+    if(lineCount <= 1){ 
+        //fprintf(stdout, "%s", lines[0]);  //segfault wegen lines[0]
         printf("only one line as input\n");
         free(lines); //free the whole array
         exit(EXIT_SUCCESS);
     }
+
+    printf("linecount 3: %d\n", lineCount);
 
     //split data 
     u_int leftCounter = lineCount / 2;
@@ -49,8 +56,9 @@ int main(int argc, char **argv) {
     char **linesLeft = malloc(leftCounter * sizeof(char *));
     char **linesRight = malloc(rightCounter * sizeof(char *));
 
+
     if (!linesLeft || !linesRight) { //initialized properly?
-        perror("malloc");
+        perror("malloc\n");
         free(lines);
         free(linesLeft);
         free(linesRight);
@@ -71,7 +79,7 @@ int main(int argc, char **argv) {
     //pipe data
     int pipeLeft[2], pipeRight[2];
     if(pipe(pipeLeft) == -1 || pipe(pipeRight) == -1){ //create the pipes
-        perror("error creating pipes");
+        perror("error creating pipes\n");
         free(linesLeft);
         free(linesRight);
         exit(EXIT_FAILURE);
@@ -81,7 +89,7 @@ int main(int argc, char **argv) {
     pid_t leftChild = fork();
 
     if(leftChild == -1){
-        fprintf(stderr, "error in forking left child");
+        fprintf(stderr, "error in forking left child\n");
         free(linesLeft);
         free(linesRight);
         exit(EXIT_FAILURE);
@@ -91,15 +99,16 @@ int main(int argc, char **argv) {
         close(pipeRight[0]);    //close read end of right pipe
         close(pipeRight[1]);    //close write end of right pipe
 
-        dup2(pipeLeft[0], STDIN_FILENO);
+        //dup2(pipeLeft[0], STDIN_FILENO);
         dup2(pipeLeft[1], STDOUT_FILENO);   //redirect stdout to pipe
 
         
         //recursion
-        execlp(argv[0], argv[0], "left", NULL);
+        execlp(argv[0], argv[0], NULL);
+        //execlp(argv[0], argv[0], "left", NULL);
 
         //if execlp fails
-        perror("execlp left failed");
+        perror("execlp left failed\n");
         free(lines);
         free(linesLeft);
         free(linesRight);
@@ -110,7 +119,7 @@ int main(int argc, char **argv) {
     pid_t rightChild = fork();
 
     if(rightChild == -1){
-        fprintf(stderr, "error in forking left child");
+        fprintf(stderr, "error in forking left child\n");
         free(lines);
         free(linesLeft);
         free(linesRight);
@@ -121,17 +130,18 @@ int main(int argc, char **argv) {
         close(pipeLeft[0]);     //close read end of left pipe
         close(pipeLeft[1]);     //close write end of left pipe
 
-        dup2(pipeRight[0], STDIN_FILENO);
+        //dup2(pipeRight[0], STDIN_FILENO);
         dup2(pipeRight[1], STDOUT_FILENO);   //redirect stdout to pipe
 
         close(pipeRight[0]);    //close read end of right pipe
         close(pipeRight[1]);
 
         //recursion
-        execlp(argv[0], argv[0], "right", NULL);
+        execlp(argv[0], argv[0], NULL);
+        //execlp(argv[0], argv[0], "right", NULL);
 
         //if execlp fails
-        perror("execlp left failed");
+        perror("execlp left failed\n");
         free(lines);
         free(linesLeft);
         free(linesRight);
@@ -139,6 +149,7 @@ int main(int argc, char **argv) {
     }
 
     //parent processes from here on
+
     //close(pipeLeft[0]);        
     //close(pipeRight[0]); 
     //close(pipeLeft[1]);        
@@ -147,7 +158,7 @@ int main(int argc, char **argv) {
 
     FILE *leftIn = fdopen(pipeLeft[1], "w");
     if (leftIn == NULL) {
-        perror("Error opening pipe for writing (left)");
+        perror("Error opening pipe for writing (left)\n");
         free(linesLeft);
         free(linesRight);
         exit(EXIT_FAILURE);
@@ -155,7 +166,7 @@ int main(int argc, char **argv) {
    
     FILE *rightIn = fdopen(pipeRight[1], "w");
     if (rightIn == NULL) {
-        perror("Error opening pipe for writing (right)");
+        perror("Error opening pipe for writing (right)\n");
         free(linesLeft);
         free(linesRight);
         exit(EXIT_FAILURE);
@@ -180,22 +191,16 @@ int main(int argc, char **argv) {
 
 
 
-    FILE *leftStream = fdopen(pipeLeft[0], "r");
-    FILE *rightStream = fdopen(pipeRight[0], "r");
-
-    if (!leftStream || !rightStream){
-        perror("Error opening pipes");
-        free(lines);
-        free(linesLeft);
-        free(linesRight);
-        exit(EXIT_FAILURE);
-    }
-
+    
     //rest of the code
         
     //TODO--------------------------------------------------------------
     // Wait for both children to finish
     int status;
+
+    printf("before wait\n");
+    fflush(stdout);
+
     waitpid(leftChild, &status, 0);
     if (WEXITSTATUS(status) == EXIT_FAILURE) {
         fprintf(stderr, "error in left child process.. \n");
@@ -207,8 +212,25 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    printf("after wait\n");
+    fflush(stdout);
+
+
+    FILE *leftStream = fdopen(pipeLeft[0], "r");
+    FILE *rightStream = fdopen(pipeRight[0], "r");
+
+    if (!leftStream || !rightStream){
+        perror("Error opening pipes\n");
+        free(lines);
+        free(linesLeft);
+        free(linesRight);
+        exit(EXIT_FAILURE);
+    }
+
 
     //GPT
+    //segfault----------------------------------------------------------------------------
+    /*
     char buffer[1024];
     char** sortedLeft = malloc(leftCounter * sizeof(char*));
     char** sortedRight = malloc(rightCounter * sizeof(char*));
@@ -223,22 +245,23 @@ int main(int argc, char **argv) {
 
     fclose(leftStream);
     fclose(rightStream);
-
-    close(pipeLeft[0]);        
-    close(pipeRight[0]); 
-
+    */
+    
 
 
     
 
     //test ----------------------------
-    /*
+    
     //char **lines = readInput(stdin, &lineCount);
     char **sortedLeft = readInput(leftStream, &leftCounter);
     char **sortedRight = readInput(rightStream, &rightCounter);
     fclose(leftStream);
     fclose(rightStream);
-*/
+
+
+    close(pipeLeft[0]);        
+    close(pipeRight[0]); 
 
 
     //merge
