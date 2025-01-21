@@ -9,7 +9,10 @@
 #include <sys/wait.h>
 #include <errno.h>
 
-
+typedef struct mydata{
+    unsigned int Count;
+    char ** lines;
+} mydata_t;
 
 char** readInput(FILE *dataInput,unsigned int *count);
 void merge(FILE* output, char** arr1, char** arr2, u_int counter1, u_int counter2);
